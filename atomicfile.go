@@ -1,4 +1,4 @@
-//go:build darwin
+//go:build linux
 
 package atomicfile
 
@@ -53,12 +53,26 @@ func Preallocate(size int64) Option {
 	})
 }
 
+func Xattr(name string, value []byte) Option {
+	return optionFunc(func(c *config) error {
+		c.xattrs = append(c.xattrs, struct {
+			name  string
+			value []byte
+		}{name, value})
+		return nil
+	})
+}
+
 // TODO: owner/group, permissions, file times, lock, xattr, fadvise flags, fsync, ...
 
 type config struct {
 	contents  io.Reader
 	flushData bool
 	prealloc  int64
+	xattrs    []struct {
+		name  string
+		value []byte
+	}
 }
 
 func Create(filename string, options ...Option) error {
@@ -72,16 +86,17 @@ func Create(filename string, options ...Option) error {
 	dir := path.Dir(filename)
 
 	var d *os.File
+	var err error
 	if cfg.flushData {
 		// on Linux the directory fd can be opened as read-only for fsync
-		d, err := os.OpenFile(dir, unix.O_DIRECTORY|os.O_RDONLY, 0)
+		d, err = os.OpenFile(dir, unix.O_DIRECTORY|os.O_RDONLY, 0)
 		if err != nil {
 			return &werror{"opening directory", err}
 		}
 		defer d.Close()
 	}
 
-	f, err := os.OpenFile(dir, _O_TMPFILE|os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o777)
+	f, err := os.OpenFile(dir, _O_TMPFILE|os.O_APPEND|os.O_WRONLY, 0o666)
 	if err != nil {
 		return &werror{"opening file", err}
 	}
@@ -94,7 +109,7 @@ func Create(filename string, options ...Option) error {
 		}
 	}
 	if prealloc > 0 {
-		err := unix.Fallocate(f.Fd(), unix.FALLOC_FL_KEEP_SIZE, 0, prealloc)
+		err := unix.Fallocate(int(f.Fd()), unix.FALLOC_FL_KEEP_SIZE, 0, prealloc)
 		if cfg.prealloc > 0 && err != nil {
 			return &werror{"preallocating file", err}
 		}
@@ -107,8 +122,15 @@ func Create(filename string, options ...Option) error {
 		}
 	}
 
+	for _, xattr := range cfg.xattrs {
+		err := unix.Fsetxattr(int(f.Fd()), xattr.name, xattr.value, 0)
+		if err != nil {
+			return &werror{"setting xattr", err}
+		}
+	}
+
 	if cfg.flushData {
-		err := unix.Fsync(int(f.Fd()))
+		err := f.Sync()
 		if err != nil {
 			return &werror{"fsync file", err}
 		}
@@ -119,12 +141,12 @@ func Create(filename string, options ...Option) error {
 		procPath := "/proc/self/fd/" + strconv.Itoa(int(f.Fd()))
 		err2 := unix.Linkat(unix.AT_FDCWD, procPath, unix.AT_FDCWD, filename, unix.AT_SYMLINK_FOLLOW)
 		if err2 != nil {
-			return &werror{"linking file", err}
+			return &werror{"linking file", err2}
 		}
 	}
 
 	if cfg.flushData {
-		err := unix.Fsync(int(d.Fd()))
+		err := d.Sync()
 		if err != nil {
 			return &werror{"fsync directory", err}
 		}
