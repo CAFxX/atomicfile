@@ -4,11 +4,11 @@ package atomicfile
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"os"
 	"path"
 	"strconv"
+	"strings"
 
 	"golang.org/x/sys/unix"
 )
@@ -26,7 +26,7 @@ func (o optionFunc) apply(cfg *config) error {
 func Contents(r io.Reader) Option {
 	return optionFunc(func(c *config) error {
 		if c.contents != nil {
-			return fmt.Errorf("multiple contents")
+			return &werror{"multiple contents", nil}
 		}
 		c.contents = r
 		return nil
@@ -43,10 +43,10 @@ func Fsync() Option {
 func Preallocate(size int64) Option {
 	return optionFunc(func(c *config) error {
 		if c.prealloc > 0 {
-			return fmt.Errorf("multiple preallocations")
+			return &werror{"multiple preallocations", nil}
 		}
 		if size < 0 {
-			return fmt.Errorf("invalid preallocation size: %d", size)
+			return &werror{"invalid preallocation size", nil}
 		}
 		c.prealloc = size
 		return nil
@@ -180,12 +180,26 @@ func guessContentSize(r io.Reader) int64 {
 	switch r := r.(type) {
 	case *bytes.Buffer:
 		return int64(r.Len())
+	case *strings.Reader:
+		return int64(r.Len())
 	case *os.File:
 		fi, err := r.Stat()
 		if err != nil || !fi.Mode().IsRegular() {
 			return 0
 		}
 		return fi.Size()
+	case *io.SectionReader:
+		pos, err := r.Seek(0, io.SeekCurrent)
+		if err != nil {
+			return 0
+		}
+		return r.Size() - pos
+	case *io.LimitedReader:
+		n := guessContentSize(r.R)
+		if n == 0 || n < r.N {
+			return n
+		}
+		return r.N
 	}
 	return 0
 }
