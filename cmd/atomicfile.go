@@ -14,8 +14,8 @@ func main() {
 	prealloc := kingpin.Flag("prealloc", "Preallocate file space (bytes)").Default("0").Int64()
 	xattrs := kingpin.Flag("xattr", "Extended attributes to be added to the file").PlaceHolder("KEY=VALUE").StringMap()
 	perm := kingpin.Flag("perm", "File permissions").String()
-	uid := kingpin.Flag("uid", "File owner user (uid)").Default("-1").Int()
-	gid := kingpin.Flag("gid", "File owner group (gid)").Default("-1").Int()
+	uid := kingpin.Flag("uid", "File owner user").Default("-1").PlaceHolder("UID").Int()
+	gid := kingpin.Flag("gid", "File owner group").Default("-1").PlaceHolder("GID").Int()
 	kingpin.Parse()
 
 	opts := []atomicfile.Option{

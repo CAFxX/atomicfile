@@ -23,8 +23,8 @@ Flags:
   --prealloc=0           Preallocate file space (bytes)
   --xattr=KEY=VALUE ...  Extended attributes to be added to the file
   --perm=PERM            File permissions
-  --uid=-1               File owner user (uid)
-  --gid=-1               File owner group (gid)
+  --uid=UID              File owner user
+  --gid=GID              File owner group
 
 Args:
   <filename>  Name of the file to create
