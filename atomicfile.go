@@ -25,7 +25,7 @@ func (o optionFunc) apply(cfg *config) error {
 
 func Contents(r io.Reader) Option {
 	return optionFunc(func(c *config) error {
-		if c.contents != nil {
+		if c.contents != defaultConfig().contents {
 			return &werror{"multiple contents", nil}
 		}
 		c.contents = r
@@ -42,7 +42,7 @@ func Fsync() Option {
 
 func Preallocate(size int64) Option {
 	return optionFunc(func(c *config) error {
-		if c.prealloc > 0 {
+		if c.prealloc != defaultConfig().prealloc {
 			return &werror{"multiple preallocations", nil}
 		}
 		if size < 0 {
@@ -63,6 +63,26 @@ func Xattr(name string, value []byte) Option {
 	})
 }
 
+func Permissions(mode os.FileMode) Option {
+	return optionFunc(func(c *config) error {
+		if c.perm != defaultConfig().perm {
+			return &werror{"multiple permissions", nil}
+		}
+		c.perm = uint32(mode.Perm())
+		return nil
+	})
+}
+
+func Ownership(uid, gid int) Option {
+	return optionFunc(func(c *config) error {
+		if c.uid != defaultConfig().uid || c.gid != defaultConfig().gid {
+			return &werror{"multiple ownership", nil}
+		}
+		c.uid, c.gid = uid, gid
+		return nil
+	})
+}
+
 // TODO: owner/group, permissions, file times, lock, xattr, fadvise flags, fsync, ...
 
 type config struct {
@@ -73,10 +93,21 @@ type config struct {
 		name  string
 		value []byte
 	}
+	perm uint32
+	uid  int
+	gid  int
+}
+
+func defaultConfig() config {
+	return config{
+		perm: ^uint32(0),
+		uid:  -1,
+		gid:  -1,
+	}
 }
 
 func Create(filename string, options ...Option) error {
-	var cfg config
+	cfg := defaultConfig()
 	for _, o := range options {
 		if err := o.apply(&cfg); err != nil {
 			return &werror{"options", err}
@@ -102,8 +133,22 @@ func Create(filename string, options ...Option) error {
 	}
 	defer f.Close()
 
+	if cfg.uid != defaultConfig().uid || cfg.gid != defaultConfig().gid {
+		err := unix.Fchown(int(f.Fd()), cfg.uid, cfg.gid)
+		if err != nil {
+			return &werror{"setting ownership", err}
+		}
+	}
+
+	if cfg.perm != defaultConfig().perm {
+		err := unix.Fchmod(int(f.Fd()), cfg.perm)
+		if err != nil {
+			return &werror{"setting permissions", err}
+		}
+	}
+
 	prealloc := cfg.prealloc
-	if prealloc == 0 && cfg.contents != nil {
+	if prealloc == defaultConfig().prealloc && cfg.contents != nil {
 		if guess := guessContentSize(cfg.contents); guess > 0 {
 			prealloc = guess
 		}
@@ -128,7 +173,6 @@ func Create(filename string, options ...Option) error {
 			return &werror{"setting xattr", err}
 		}
 	}
-
 	if cfg.flushData {
 		err := f.Sync()
 		if err != nil {
