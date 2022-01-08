@@ -12,6 +12,12 @@ in the system can not observe the file in an incomplete state (this includes all
 aspects of the file specified as flags to the command, such as xattrs, permissions,
 owner, etc.).
 
+## Install
+
+```
+go install github.com/CAFxX/atomicfile/cmd/atomicfile@latest
+```
+
 ## Usage
 
 ```
