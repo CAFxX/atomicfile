@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/CAFxX/atomicfile"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -16,6 +17,8 @@ func main() {
 	perm := kingpin.Flag("perm", "File permissions").String()
 	uid := kingpin.Flag("uid", "File owner user").Default("-1").PlaceHolder("UID").Int()
 	gid := kingpin.Flag("gid", "File owner group").Default("-1").PlaceHolder("GID").Int()
+	mtime := kingpin.Flag("mtime", "File modification time (RFC 3339)").String()
+	atime := kingpin.Flag("atime", "File access time (RFC 3339)").String()
 	kingpin.Parse()
 
 	opts := []atomicfile.Option{
@@ -39,6 +42,20 @@ func main() {
 	}
 	if *uid != -1 || *gid != -1 {
 		opts = append(opts, atomicfile.Ownership(*uid, *gid))
+	}
+	if *mtime != "" {
+		t, err := time.Parse(time.RFC3339Nano, *mtime)
+		if err != nil {
+			fatal(err)
+		}
+		opts = append(opts, atomicfile.ModificationTime(t))
+	}
+	if *atime != "" {
+		t, err := time.Parse(time.RFC3339Nano, *atime)
+		if err != nil {
+			fatal(err)
+		}
+		opts = append(opts, atomicfile.AccessTime(t))
 	}
 
 	err := atomicfile.Create(*filename, opts...)

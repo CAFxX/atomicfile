@@ -31,6 +31,8 @@ Flags:
   --perm=PERM            File permissions
   --uid=UID              File owner user
   --gid=GID              File owner group
+  --mtime=MTIME          File modification time (RFC 3339)
+  --atime=ATIME          File access time (RFC 3339)
 
 Args:
   <filename>  Name of the file to create

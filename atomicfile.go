@@ -9,6 +9,8 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"time"
+	"unsafe"
 
 	"golang.org/x/sys/unix"
 )
@@ -83,6 +85,34 @@ func Ownership(uid, gid int) Option {
 	})
 }
 
+func ModificationTime(t time.Time) Option {
+	return optionFunc(func(c *config) error {
+		if c.mtime != defaultConfig().mtime {
+			return &werror{"multiple modification times", nil}
+		}
+		ts, err := unix.TimeToTimespec(t)
+		if err != nil {
+			return &werror{"invalid modification time", err}
+		}
+		c.mtime = ts
+		return nil
+	})
+}
+
+func AccessTime(t time.Time) Option {
+	return optionFunc(func(c *config) error {
+		if c.atime != defaultConfig().atime {
+			return &werror{"multiple access times", nil}
+		}
+		ts, err := unix.TimeToTimespec(t)
+		if err != nil {
+			return &werror{"invalid access time", err}
+		}
+		c.atime = ts
+		return nil
+	})
+}
+
 // TODO: owner/group, permissions, file times, lock, xattr, fadvise flags, fsync, ...
 
 type config struct {
@@ -93,16 +123,20 @@ type config struct {
 		name  string
 		value []byte
 	}
-	perm uint32
-	uid  int
-	gid  int
+	perm  uint32
+	uid   int
+	gid   int
+	mtime unix.Timespec
+	atime unix.Timespec
 }
 
 func defaultConfig() config {
 	return config{
-		perm: ^uint32(0),
-		uid:  -1,
-		gid:  -1,
+		perm:  ^uint32(0),
+		uid:   -1,
+		gid:   -1,
+		mtime: unix.Timespec{Nsec: unix.UTIME_OMIT},
+		atime: unix.Timespec{Nsec: unix.UTIME_OMIT},
 	}
 }
 
@@ -173,6 +207,14 @@ func Create(filename string, options ...Option) error {
 			return &werror{"setting xattr", err}
 		}
 	}
+
+	if cfg.mtime != defaultConfig().mtime || cfg.atime != defaultConfig().atime {
+		err := futimens(int(f.Fd()), &[2]unix.Timespec{cfg.atime, cfg.mtime})
+		if err != nil {
+			return &werror{"setting access/modification time", err}
+		}
+	}
+
 	if cfg.flushData {
 		err := f.Sync()
 		if err != nil {
@@ -246,4 +288,13 @@ func guessContentSize(r io.Reader) int64 {
 		return r.N
 	}
 	return 0
+}
+
+// https://github.com/golang/go/issues/49699
+func futimens(fd int, times *[2]unix.Timespec) (err error) {
+	_, _, e1 := unix.Syscall6(unix.SYS_UTIMENSAT, uintptr(fd), 0, uintptr(unsafe.Pointer(times)), 0, 0, 0)
+	if e1 != 0 {
+		err = e1
+	}
+	return
 }
