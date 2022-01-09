@@ -12,6 +12,9 @@ in the system can not observe the file in an incomplete state (this includes all
 aspects of the file specified as flags to the command, such as xattrs, permissions,
 owner, etc.).
 
+If durability is required in addition to atomicity the `--fsync` flag will call
+`fsync(2)` on both the file being created and on the directory containing it.
+
 ## Install
 
 ```

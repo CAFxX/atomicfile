@@ -161,7 +161,7 @@ func Create(filename string, options ...Option) error {
 		defer d.Close()
 	}
 
-	f, err := os.OpenFile(dir, _O_TMPFILE|os.O_APPEND|os.O_WRONLY, 0o666)
+	f, err := os.OpenFile(dir, _O_TMPFILE|os.O_WRONLY, 0o666)
 	if err != nil {
 		return &werror{"opening file", err}
 	}
@@ -195,7 +195,7 @@ func Create(filename string, options ...Option) error {
 	}
 
 	if cfg.contents != nil {
-		_, err := io.Copy(f, cfg.contents)
+		_, err := ioCopy(f, cfg.contents)
 		if err != nil {
 			return &werror{"populating file", err}
 		}
@@ -297,4 +297,34 @@ func futimens(fd int, times *[2]unix.Timespec) (err error) {
 		err = e1
 	}
 	return
+}
+
+func ioCopy(w io.Writer, r io.Reader) (n int64, err error) {
+	if wfd, rfd := getFD(w), getFD(r); wfd >= 0 && rfd >= 0 {
+		t := int64(0)
+		for {
+			n, err := unix.CopyFileRange(rfd, nil, wfd, nil, 1<<30, 0)
+			if err != nil {
+				if t == 0 {
+					break
+				}
+				return t, &werror{"copy_file_range", err}
+			}
+			if n == 0 {
+				return t, nil
+			}
+			t += int64(n)
+		}
+	}
+	return io.Copy(w, r)
+}
+
+func getFD(o interface{}) int {
+	switch o.(type) {
+	case io.Reader, io.Writer:
+		if o, ok := o.(interface{ Fd() uintptr }); ok {
+			return int(o.Fd())
+		}
+	}
+	return -1
 }
