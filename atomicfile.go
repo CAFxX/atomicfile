@@ -226,7 +226,10 @@ func Create(filename string, options ...Option) error {
 		}
 	}
 
-	if written < prealloc && cfg.prealloc > 0 {
+	if written < prealloc && cfg.prealloc == 0 {
+		// The user did not request prealloc, and our guess was too big:
+		// trim the excess allocation so that we don't waste space in case
+		// the fs honoured our request.
 		// TODO: should we fail in this case?
 		_ = unix.Fallocate(int(f.Fd()), unix.FALLOC_FL_PUNCH_HOLE|unix.FALLOC_FL_KEEP_SIZE, written, prealloc-written)
 	}
