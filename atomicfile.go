@@ -42,7 +42,7 @@ func Contents(r io.Reader) Option {
 // its containing directory.
 func Fsync() Option {
 	return optionFunc(func(c *config) error {
-		c.flushData = true
+		c.fsync = true
 		return nil
 	})
 }
@@ -128,13 +128,23 @@ func AccessTime(t time.Time) Option {
 	})
 }
 
+// DontNeed signals to the OS that the target file should not remain in the block cache.
+// This is useful in case the file will not be accessed/read in the near future.
+func DontNeed() Option {
+	return optionFunc(func(c *config) error {
+		c.dontNeed = true
+		return nil
+	})
+}
+
 // TODO: owner/group, permissions, file times, lock, xattr, fadvise flags, fsync, ...
 
 type config struct {
-	contents  io.Reader
-	flushData bool
-	prealloc  int64
-	xattrs    []struct {
+	contents io.Reader
+	dontNeed bool
+	fsync    bool
+	prealloc int64
+	xattrs   []struct {
 		name  string
 		value []byte
 	}
@@ -171,7 +181,7 @@ func Create(filename string, options ...Option) error {
 
 	var d *os.File
 	var err error
-	if cfg.flushData {
+	if cfg.fsync {
 		// on Linux the directory fd can be opened as read-only for fsync
 		d, err = os.OpenFile(dir, unix.O_DIRECTORY|os.O_RDONLY, 0)
 		if err != nil {
@@ -248,7 +258,12 @@ func Create(filename string, options ...Option) error {
 		}
 	}
 
-	if cfg.flushData {
+	if cfg.dontNeed {
+		// TODO: this should be done incrementally in the io.Copy loop
+		_ = unix.Fadvise(int(f.Fd()), 0, written, unix.FADV_DONTNEED)
+	}
+
+	if cfg.fsync {
 		err := f.Sync()
 		if err != nil {
 			return &werror{"fsync file", err}
@@ -265,7 +280,7 @@ func Create(filename string, options ...Option) error {
 		}
 	}
 
-	if cfg.flushData {
+	if cfg.fsync {
 		err := d.Sync()
 		if err != nil {
 			return &werror{"fsync directory", err}

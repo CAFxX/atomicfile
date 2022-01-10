@@ -12,6 +12,7 @@ import (
 func main() {
 	filename := kingpin.Arg("filename", "Name of the file to create").Required().String()
 	fsync := kingpin.Flag("fsync", "Fsync the file").Default("false").Bool()
+	dontneed := kingpin.Flag("dontneed", "Minimize block cache usage").Default("false").Bool()
 	prealloc := kingpin.Flag("prealloc", "Preallocate file space (bytes)").Default("0").Int64()
 	xattrs := kingpin.Flag("xattr", "Extended attributes to be added to the file").PlaceHolder("KEY=VALUE").StringMap()
 	perm := kingpin.Flag("perm", "File permissions").String()
@@ -26,6 +27,9 @@ func main() {
 	}
 	if *fsync {
 		opts = append(opts, atomicfile.Fsync())
+	}
+	if *dontneed {
+		opts = append(opts, atomicfile.DontNeed())
 	}
 	if *prealloc != 0 {
 		opts = append(opts, atomicfile.Preallocate(*prealloc))

@@ -39,6 +39,7 @@ usage: atomicfile [<flags>] <filename>
 Flags:
   --help                 Show context-sensitive help (also try --help-long and --help-man).
   --fsync                Fsync the file
+  --dontneed             Minimize block cache usage
   --prealloc=0           Preallocate file space (bytes)
   --xattr=KEY=VALUE ...  Extended attributes to be added to the file
   --perm=PERM            File permissions
