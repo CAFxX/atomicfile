@@ -7,7 +7,7 @@ Linux command to atomically create fully-formed files with contents read from st
 echo 'Hello world!' | atomicfile hello.txt
 
 # Atomically copy a file (also across filesystems)
-atomicfile destination.file </some/other/filysystem/source.file
+atomicfile destination.file </some/other/filesystem/source.file
 ```
 
 Files are always created atomically using `O_TMPFILE`/`linkat`, so any other process
