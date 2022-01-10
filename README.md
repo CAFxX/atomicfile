@@ -37,3 +37,10 @@ Flags:
 Args:
   <filename>  Name of the file to create
 ```
+
+### Requirements
+
+- `atomicfile` requires Linux >= 3.11 (for `O_TMPFILE`).
+- Availability of some of the features (preallocating space, extended attributes, ...)
+  depend on the filesystem and kernel version.
+- Setting UID/GID normally requires the process to run with elevated privileges (sudo).

@@ -158,6 +158,7 @@ func Create(filename string, options ...Option) error {
 		if err != nil {
 			return &werror{"opening directory", err}
 		}
+		// TODO: check error
 		defer d.Close()
 	}
 
@@ -165,6 +166,7 @@ func Create(filename string, options ...Option) error {
 	if err != nil {
 		return &werror{"opening file", err}
 	}
+	// TODO: check error
 	defer f.Close()
 
 	if cfg.uid != defaultConfig().uid || cfg.gid != defaultConfig().gid {
@@ -184,24 +186,30 @@ func Create(filename string, options ...Option) error {
 	prealloc := cfg.prealloc
 	if prealloc == defaultConfig().prealloc && cfg.contents != nil {
 		if guess := guessContentSize(cfg.contents); guess > 0 {
-			// TODO: if we guess the size, and then we end up writing less than the guessed size
-			// we need to deallocate the extra space; also, if preallocating fails when the size
-			// is guessed we should not fail the whole operation immediately.
 			prealloc = guess
 		}
 	}
 	if prealloc > 0 {
 		err := unix.Fallocate(int(f.Fd()), unix.FALLOC_FL_KEEP_SIZE, 0, prealloc)
-		if cfg.prealloc > 0 && err != nil {
-			return &werror{"preallocating file", err}
+		if err != nil {
+			prealloc = 0
+			if cfg.prealloc > 0 {
+				return &werror{"preallocating file", err}
+			}
 		}
 	}
 
+	var written int64
 	if cfg.contents != nil {
-		_, err := io.Copy(f, cfg.contents)
+		written, err = io.Copy(f, cfg.contents)
 		if err != nil {
 			return &werror{"populating file", err}
 		}
+	}
+
+	if written < prealloc && cfg.prealloc > 0 {
+		// TODO: should we fail in this case?
+		_ = unix.Fallocate(int(f.Fd()), unix.FALLOC_FL_PUNCH_HOLE|unix.FALLOC_FL_KEEP_SIZE, written, prealloc-written)
 	}
 
 	for _, xattr := range cfg.xattrs {
