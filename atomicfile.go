@@ -16,6 +16,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// Option is the interface for options passed to Create.
 type Option interface {
 	apply(*config) error
 }
@@ -26,6 +27,7 @@ func (o optionFunc) apply(cfg *config) error {
 	return o(cfg)
 }
 
+// Contents specifies the contents to be written to the target file.
 func Contents(r io.Reader) Option {
 	return optionFunc(func(c *config) error {
 		if c.contents != defaultConfig().contents {
@@ -36,6 +38,8 @@ func Contents(r io.Reader) Option {
 	})
 }
 
+// Fsync enables the invocation of fsync() on the target file and
+// its containing directory.
 func Fsync() Option {
 	return optionFunc(func(c *config) error {
 		c.flushData = true
@@ -43,6 +47,9 @@ func Fsync() Option {
 	})
 }
 
+// Preallocate allocates the specified amount of bytes in the target
+// file, regardless of the amount of content written.
+// Not all filesystems and kernel versions support preallocating space.
 func Preallocate(size int64) Option {
 	return optionFunc(func(c *config) error {
 		if c.prealloc != defaultConfig().prealloc {
@@ -56,6 +63,9 @@ func Preallocate(size int64) Option {
 	})
 }
 
+// Xattr specifies an extended attribute to be added to the target file.
+// Multiple externded attributes can be added to the same file.
+// Not all filesystems and kernel versions support extended attributes.
 func Xattr(name string, value []byte) Option {
 	return optionFunc(func(c *config) error {
 		c.xattrs = append(c.xattrs, struct {
@@ -66,6 +76,7 @@ func Xattr(name string, value []byte) Option {
 	})
 }
 
+// Permissions specifies the Unix permissions to be set on the target file.
 func Permissions(mode os.FileMode) Option {
 	return optionFunc(func(c *config) error {
 		if c.perm != defaultConfig().perm {
@@ -76,6 +87,7 @@ func Permissions(mode os.FileMode) Option {
 	})
 }
 
+// Ownership specifies the target file owner UID and GID.
 func Ownership(uid, gid int) Option {
 	return optionFunc(func(c *config) error {
 		if c.uid != defaultConfig().uid || c.gid != defaultConfig().gid {
@@ -86,6 +98,7 @@ func Ownership(uid, gid int) Option {
 	})
 }
 
+// ModificationTime specifies the modification time of the target file.
 func ModificationTime(t time.Time) Option {
 	return optionFunc(func(c *config) error {
 		if c.mtime != defaultConfig().mtime {
@@ -100,6 +113,7 @@ func ModificationTime(t time.Time) Option {
 	})
 }
 
+// AccessTime specifies the access time of the target file.
 func AccessTime(t time.Time) Option {
 	return optionFunc(func(c *config) error {
 		if c.atime != defaultConfig().atime {
@@ -141,6 +155,10 @@ func defaultConfig() config {
 	}
 }
 
+// Create creates the specified file with the provided options.
+// The file is created atomically in a fully-formed state using
+// O_TMPFILE/linkat.
+// Create fails if the file already exists.
 func Create(filename string, options ...Option) error {
 	cfg := defaultConfig()
 	for _, o := range options {
