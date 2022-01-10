@@ -161,7 +161,7 @@ func Create(filename string, options ...Option) error {
 		defer d.Close()
 	}
 
-	f, err := os.OpenFile(dir, _O_TMPFILE|os.O_APPEND|os.O_WRONLY, 0o666)
+	f, err := os.OpenFile(dir, unix.O_TMPFILE|os.O_APPEND|os.O_WRONLY, 0o666)
 	if err != nil {
 		return &werror{"opening file", err}
 	}
@@ -184,6 +184,9 @@ func Create(filename string, options ...Option) error {
 	prealloc := cfg.prealloc
 	if prealloc == defaultConfig().prealloc && cfg.contents != nil {
 		if guess := guessContentSize(cfg.contents); guess > 0 {
+			// TODO: if we guess the size, and then we end up writing less than the guessed size
+			// we need to deallocate the extra space; also, if preallocating fails when the size
+			// is guessed we should not fail the whole operation immediately.
 			prealloc = guess
 		}
 	}
@@ -222,7 +225,8 @@ func Create(filename string, options ...Option) error {
 		}
 	}
 
-	err = unix.Linkat(int(f.Fd()), "", unix.AT_FDCWD, filename, _AT_EMPTY_PATH)
+	const AT_EMPTY_PATH = 0x1000
+	err = unix.Linkat(int(f.Fd()), "", unix.AT_FDCWD, filename, AT_EMPTY_PATH)
 	if err != nil {
 		procPath := "/proc/self/fd/" + strconv.Itoa(int(f.Fd()))
 		err2 := unix.Linkat(unix.AT_FDCWD, procPath, unix.AT_FDCWD, filename, unix.AT_SYMLINK_FOLLOW)
@@ -240,11 +244,6 @@ func Create(filename string, options ...Option) error {
 
 	return nil
 }
-
-const (
-	_O_TMPFILE     = unix.O_DIRECTORY | 0o20000000
-	_AT_EMPTY_PATH = 0x1000
-)
 
 type werror struct {
 	msg   string
