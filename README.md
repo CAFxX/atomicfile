@@ -15,6 +15,16 @@ in the system can not observe the file in an incomplete state (this includes all
 aspects of the file specified as flags to the command, such as xattrs, permissions,
 owner, etc.).
 
+In addition, the same functionality is exposed as a [Go library](https://pkg.go.dev/github.com/CAFxX/atomicfile):
+
+```golang
+// atomically create a file with contents read from the provided io.Reader r
+err := atomicfile.Create(filename, atomicfile.Contents(r))
+if err != nil {
+  panic(err)
+}
+```
+
 ## Install
 
 ```
