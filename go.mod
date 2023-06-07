@@ -3,7 +3,7 @@ module github.com/CAFxX/atomicfile
 go 1.17
 
 require (
-	golang.org/x/sys v0.0.0-20211216021012-1d35b9e2eb4e
+	golang.org/x/sys v0.8.0
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 )
 
